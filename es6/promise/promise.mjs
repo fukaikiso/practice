@@ -26,6 +26,7 @@ export class MyPromise {
       executor(this._resolve.bind(this), this._reject.bind(this));
     } catch (error) {
       this._reject(error);
+      console.log(error);
     }
   }
 
@@ -72,7 +73,6 @@ export class MyPromise {
     }
     queueMicrotask(() => {
       // 若传入的不是函数，则状态和值跟调用then的promise保持一致
-      console.log(handler);
 
       if (typeof executor !== 'function') {
         if (this._status === PROMISE_STATUS.FULFILLED) {
@@ -96,6 +96,7 @@ export class MyPromise {
       } catch (error) {
         // 若执行出错，则状态为失败，值为错误原因
         reject(error);
+        console.log(error);
       }
     });
   }
@@ -169,5 +170,118 @@ export class MyPromise {
         throw error;
       }
     );
+  }
+
+  /**
+   * 返回一个fulfilled状态的的promise
+   * @param {any} data
+   * @returns
+   */
+  static resolve(data) {
+    // 如果是MyPromise，直接返回data
+    if (data instanceof MyPromise) {
+      return data;
+    }
+
+    return new MyPromise((resolve, reject) => {
+      if (isPromise(data)) {
+        // 如果是其他promiseLike对象，则返回新promise，状态保持一致
+        data.then(resolve, reject);
+      } else {
+        // 其他情况直接返回一个fulfilled状态的promise
+        resolve(data);
+      }
+    });
+  }
+
+  /**
+   * 返回一个rejected状态的promise
+   * @param {any} error
+   * @returns
+   */
+  static reject(error) {
+    return new MyPromise((_, reject) => {
+      reject(error);
+    });
+  }
+
+  /**
+   * 返回一个promise
+   * promises是一个迭代器，包含多个promise
+   * 全部promise成功，则返回的promise状态为成功，数据为传入promise成功的数据，且顺序与传入的顺序一致
+   * 若有一个promise失败，则返回promise的状态为失败，原因为第一个失败的原因
+   * @param {Iterator} promises
+   * @returns {MyPromise[]}
+   */
+  static all(promises) {
+    return new MyPromise((resolve, reject) => {
+      try {
+        const results = [];
+        let count = 0;
+        let fulfilledCount = 0;
+
+        for (const promise of promises) {
+          const index = count;
+          count++;
+
+          MyPromise.resolve(promise).then((data) => {
+            results[index] = data;
+            fulfilledCount++;
+
+            // 若成功执行完每一个promise，则状态改为成功
+            if (fulfilledCount === count) {
+              resolve(results);
+            }
+          }, reject);
+        }
+
+        // 处理空迭代器情况
+        if (count === 0) {
+          resolve(results);
+        }
+      } catch (error) {
+        // 执行过程中报错，状态改为失败
+        reject(error);
+        console.log(error);
+      }
+    });
+  }
+
+  /**
+   * 返回一个promise
+   * promises是一个迭代器，包含多个promise
+   * 返回的状态一定为成功，按照顺序将所有promise的结果返回
+   * @param {Iterator} promises
+   * @returns {MyPromise[]}
+   */
+  static allSettled(promises) {
+    const promiseList = [];
+    for (const promise of promises) {
+      promiseList.push(
+        // then中两个回调只要不报错，则promise.then返回的promise一定为成功
+        // 使用promise.then确保promiseList中的promise执行后状态一定为fulfilled
+        MyPromise.resolve(promise).then(
+          (value) => ({ _status: PROMISE_STATUS.FULFILLED, _value: value }),
+          (error) => ({ _status: PROMISE_STATUS.REJECTED, _value: error })
+        )
+      );
+    }
+    return MyPromise.all(promiseList);
+  }
+
+  /**
+   * 返回一个promise
+   * promises是一个迭代器，包含多个promise
+   * 返回的状态和值与最先完成的promise保持一致
+   * 若传空数组，则一致Pending
+   * @param {Iterator} promises
+   * @returns {MyPromise[]}
+   */
+  static race(promises) {
+    return new MyPromise((resolve, reject) => {
+      for (const promise of promises) {
+        MyPromise.resolve(promise).then(resolve, reject);
+      }
+    });
   }
 }
