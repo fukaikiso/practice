@@ -1,4 +1,8 @@
 /**
+ * @description 手写promise
+ */
+
+/**
  * promise A+ 规范对是否promise的定义
  * 1.有值
  * 2.是一个对象
