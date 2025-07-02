@@ -277,7 +277,7 @@ export class MyPromise {
    * 返回一个promise
    * promises是一个迭代器，包含多个promise
    * 返回的状态和值与最先完成的promise保持一致
-   * 若传空数组，则一致Pending
+   * 若传空数组，则一直Pending
    * @param {Iterator} promises
    * @returns {MyPromise[]}
    */
@@ -285,6 +285,46 @@ export class MyPromise {
     return new MyPromise((resolve, reject) => {
       for (const promise of promises) {
         MyPromise.resolve(promise).then(resolve, reject);
+      }
+    });
+  }
+
+  /**
+   * 返回一个promise
+   * promises是一个迭代器，包含多个promise
+   * 只要存在一个完成状态的promise则返回一个fulfilled状态的promise，否则返回一个rejected状态的promise
+   * @param {*} promises
+   * @returns
+   */
+  static any(promises) {
+    return new MyPromise((resolve, reject) => {
+      const errors = [];
+      const promiseList = Array.from(promises);
+      let rejectedCount = 0;
+      const total = promiseList.length;
+
+      if (total === 0) {
+        reject(new Error(`All promises were rejected. Errors: []`));
+        return;
+      }
+
+      for (const promise of promiseList) {
+        MyPromise.resolve(promise).then(resolve, (error) => {
+          errors.push(error);
+
+          rejectedCount++;
+
+          // 如果所有promise都失败，则返回一个rejected状态的promise
+          if (rejectedCount === total) {
+            reject(
+              new Error(
+                `All promises were rejected. Errors: [${errors
+                  .map((e) => (e && e.message ? e.message : e))
+                  .join(', ')}]`
+              )
+            );
+          }
+        });
       }
     });
   }
